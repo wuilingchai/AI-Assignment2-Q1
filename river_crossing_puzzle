@@ -1,8 +1,7 @@
 import copy
 import time
-from os import system, name
 
-# place in state for each character
+# define state for each character
 CRIMINAL = 0
 POLICEMAN = 1
 FATHER = 2
@@ -10,8 +9,10 @@ MOTHER = 3
 CHILD = 4
 BOAT = 5
 
-START_STATE = ["L", "L", "L", "L", "L", "L"]
+# define initial state
+INITIAL_STATE = ["L", "L", "L", "L", "L", "L"]
 
+# define criminal rule
 def criminalRule(state):
     return state[POLICEMAN] == state[CRIMINAL] or (
         state[POLICEMAN] != state[CRIMINAL] 
@@ -19,23 +20,23 @@ def criminalRule(state):
         and state[FATHER] != state[CRIMINAL]
     )
 
-
+# define child rule
 def childRule(state):
     return state[FATHER] == state[CHILD] or state[MOTHER] == state[CHILD]
 
 
-# We have defined each rule and in this function we check whether the given state is valid or not
-def isValid(state):
+# check the validity of each state
+def validState(state):
     return criminalRule(state) and childRule(state)
 
 
-# checking for goal state
-def isGoal(state):
+# check goal state
+def goalState(state):
     return state == ["R", "R", "R", "R", "R", "R"]
 
 
 # generates all possible moves
-def generateMoves(state):
+def possibleMoves(state):
     for other in [CRIMINAL, POLICEMAN, FATHER, MOTHER, CHILD]:
         if state[FATHER] == state[other] == state[BOAT]:
             move = copy.deepcopy(state)
@@ -59,28 +60,28 @@ def generateMoves(state):
             yield move
 
 
-# filter out only the valid moves
-def validMoves(state_list):
-    validList = []
-    for state in state_list:
-        if isValid(state) and state not in validList:
-            validList.append(state)
-    return validList
+# get the valid moves
+def validMoves(state_space):
+    valid_list = []
+    for state in state_space:
+        if validState(state) and state not in valid_list:
+            valid_list.append(state)
+    return valid_list
 
 
-# we do a depth limited search, using a previous_states list to keep track of where we have been. This function only returns a winning answer.
-def depthLimitedSearch(state, previous_states, maxDepth):
+# apply depth limited search, this function assures a solution will be found, using less time and memory
+def dls(state, previous_states, max_depth):
     previous_states.append(state)
 
-    if isGoal(state):
+    if goalState(state):
         return previous_states
 
-    if maxDepth <= 0:
+    if max_depth <= 0:
         return None
 
-    for move in validMoves(generateMoves(state)):
+    for move in validMoves(possibleMoves(state)):
         if move not in previous_states:
-            result = depthLimitedSearch(move, previous_states, maxDepth - 1)
+            result = dls(move, previous_states, max_depth - 1)
             if result is not None:
                 return result
             previous_states.pop()
@@ -88,15 +89,16 @@ def depthLimitedSearch(state, previous_states, maxDepth):
     return None
 
 
-# print one state in the terminal
-def show(state):
-    CHARACTERSNAME = [
+# print one state
+def display(state):
+    CHARACTERS = [
         "CRIMINAL",
         "POLICEMAN",
         "FATHER",
         "MOTHER",
         "CHILD",
     ]
+    
     space = " " * 10
     plainText = "|| {} |                | {} ||"
 
@@ -104,12 +106,12 @@ def show(state):
     print(plainText.format(space, space))
 
     for i in range(0, 5):
-        characterName = CHARACTERSNAME[i] + " " * (10 - len(CHARACTERSNAME[i]))
+        character = CHARACTERS[i] + " " * (10 - len(CHARACTERS[i]))
 
         if state[i] == "L":
-            print(plainText.format(characterName, space))
+            print(plainText.format(character, space))
         else:
-            print(plainText.format(space, characterName))
+            print(plainText.format(space, character))
 
         if i == 3:
             if state[5] == "R":
@@ -121,56 +123,24 @@ def show(state):
     print("=" * 46)
 
 
-# print path in the terminal with help of show() function
-def pathShow(state_list, delay):
-    for state in state_list:
-        show(state)
+# print path 
+def showPath(state_space, delay):
+    for state in state_space:
+        display(state)
         time.sleep(delay)
-        clear()
 
-
-# clear the terminal
-def clear():
-
-    # for windows
-    if name == "nt":
-        _ = system("cls")
-
-    # for mac and linux(here, os.name is 'posix')
-    else:
-        _ = system("clear")
 
 
 # main function
 def main():
 
-    state_list = depthLimitedSearch(
-        ["L", "L", "L", "L", "L", "L"], [], 30
+    state_space = dls(
+        INITIAL_STATE, [], 30
     )
 
-    userInput = input(
-        "please enter number of the state that you want to print (0 to 13) or enter 'path' for showing path or enter 'exit' for exiting: "
-    )
+    showPath(state_space, 1.5)
+                
 
-    while userInput != "exit":
-        try:
-
-            if userInput == "path":
-                clear()
-                pathShow(state_list, 1.5)
-
-            else:
-                show(state_list[int(userInput)])
-
-            userInput = input(
-                "please enter number of the state that you want to print (0 to 13) or enter 'path' for showing path or enter 'exit' for exiting: "
-            )
-        except:
-            print("please enter a valid value.")
-            userInput = input(
-                "please enter number of the state that you want to print (0 to 13) or enter 'path' for showing path or enter 'exit' for exiting: "
-            )
-            continue
-
+    
 
 main()
