@@ -1,6 +1,9 @@
 import copy
 import time
 
+# initialize path cost
+path_cost = -1;
+
 # define state for each character
 CRIMINAL = 0
 POLICEMAN = 1
@@ -91,6 +94,8 @@ def dls(state, previous_states, max_depth):
 
 # print one state
 def display(state):
+    global path_cost
+    
     CHARACTERS = [
         "CRIMINAL",
         "POLICEMAN",
@@ -121,7 +126,9 @@ def display(state):
 
     print(plainText.format(space, space))
     print("=" * 46)
-
+    
+    # each action has a uniform cost of 1
+    path_cost += 1
 
 # print path 
 def showPath(state_space, delay):
@@ -139,6 +146,7 @@ def main():
     )
 
     showPath(state_space, 1.5)
+    print("\nPath Cost: " + str(path_cost))
                 
 
     
