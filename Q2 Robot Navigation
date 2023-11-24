@@ -1,0 +1,233 @@
+# AI Assignment 2 (2023 September Semester)
+# Q2 - Robot Navigation
+# Group 3
+
+import heapq
+from collections import deque
+
+# Grid Node Class
+class Node:
+    def __init__(self, x, y, load, energy, parent=None, action=None):
+        self.x = x
+        self.y = y
+        self.load = load
+        self.energy = energy
+        self.parent = parent
+        self.action = action
+
+    def __lt__(self, other):
+        return self.energy < other.energy
+
+
+# Get Adjacent Rooms
+def get_neighbors(node):
+    x = node.x
+    y = node.y
+    neighbors = []
+
+    if x % 2 == 1: # Odd row            
+        possible_neighbors = [(x-2, y), (x-1,y), (x+1,y), (x+2,y), (x+1,y-1), (x-1,y-1)]
+    else: # Even row
+        possible_neighbors = [(x-2,y), (x-1,y+1), (x+1,y+1), (x+2,y), (x+1,y), (x-1,y)]
+
+    for neighbor in possible_neighbors:
+        if neighbor[0] >= 0 and neighbor[0] <= 11 and neighbor[1] >= 0: # Limit building boundary
+            if (neighbor[0] % 2 != 1 and neighbor[1] < 4) or neighbor[0] % 2 == 1: # Limit building boundary
+                neighbors.append(neighbor)
+ 
+    return neighbors
+
+
+# Transition Model
+def transitionmodel(node, action, weight):
+    children = []
+    neighbors = get_neighbors(node)
+    
+    if action == 'move':
+        for neighbor in neighbors:
+            if node.load == 0:
+                energy_cost = 1 # If no rubbish is carried, only one unit of energy is used
+            else:
+                energy_cost = 1 + (node.load // 10) # Energy cost depends on load (1 additional unit for every 10 kg)
+                
+            child = Node(neighbor[0], neighbor[1], node.load + weight, node.energy + energy_cost, node, action)
+            children.append(child)
+                
+    elif action == 'collect':
+        collected_load = node.load + weight
+        child = Node(node.x, node.y, collected_load, node.energy, node, action)
+        children.append(child)
+
+
+    elif action == 'dispose':
+        child = Node(node.x, node.y, 0, node.energy, node, action)
+        children.append(child)
+
+    return children
+
+
+# Target Check (target can be rubbish rooms or disposal)
+def istarget(node, target):
+    return node.x == target.x and node.y == target.y
+
+
+# Heuristic Function (Manhattan Distance)
+def heuristic(node, target):
+    return abs(node.x - target.x) + abs(node.y - target.y)
+
+
+# A* Algorithm (find the shortest path from start node to target node)
+def astar(grid, start, target, rubbish_rooms):
+    open_list = []
+    closed_set = set()
+    
+    start_node = Node(start[0], start[1], 0, 0)
+    target_node = Node(target[0], target[1], 0, 0)
+        
+    heapq.heappush(open_list, (0, start_node)) # f = 0
+    
+    while open_list:
+        current_node = heapq.heappop(open_list)
+        current_node = current_node[1]
+
+        if istarget(current_node, target_node): # Target check
+            path = []
+            while current_node:
+                path.append(((current_node.x, current_node.y), current_node.load, current_node.energy))
+                current_node = current_node.parent
+            return path[::-1]  # Reverse the path to start from the start point
+        
+        closed_set.add((current_node.x, current_node.y))
+        
+        children = transitionmodel(current_node, 'move', grid[current_node.x][current_node.y])
+        
+        for child in children:
+            if (child.x, child.y) not in closed_set:
+                f_score = child.energy + heuristic(child, target_node) # f = g + h
+                heapq.heappush(open_list, (f_score, child))
+    
+    return None  # No path found
+
+
+# Find Nearest Rubbish Grid from Current Position
+def find_nearest_rubbish(grid, visited_grid, start):
+    visited = set()
+    queue = deque([(start, 0)])
+
+    while queue:
+        (x, y), distance = queue.popleft()
+        visited.add((x, y))
+
+        if grid[x][y] > 0 and visited_grid[x][y] == 0: # Find the room that has rubbish and has not been visited
+            return (x, y)
+
+        for neighbor in get_neighbors(Node(x, y, 0, 0)):
+            if neighbor not in visited and grid[neighbor[0]][neighbor[1]] != -1:
+                queue.append((neighbor, distance + 1))
+
+    return None
+
+
+# Go through All Rubbish Rooms
+def collect_all_rubbish(grid, entrance, disposal, rubbish_rooms):
+    path = [((entrance[0], entrance[1]), 0, 0)]
+    latest_rubbish = None
+
+    visited_grid = [[0 for _ in row] for row in grid] # Create a new grid to save visited rubbish rooms
+    
+    while rubbish_rooms:
+        nearest_rubbish = find_nearest_rubbish(grid, visited_grid, entrance) # Find nearest rubbish room
+        
+        path_to_rubbish = astar(grid, entrance, nearest_rubbish, rubbish_rooms) # Find shortest path to nearest rubbish room
+        
+        path_to_rubbish.pop(0) # Remove repeating start node
+        
+        path += path_to_rubbish # Add to path
+                
+        entrance = nearest_rubbish
+        latest_rubbish = nearest_rubbish
+        
+        # Update the visited grid to mark the rubbish as collected
+        x, y = nearest_rubbish
+        visited_grid[x][y] = -1  # Mark it -1 as collected
+
+        rubbish_rooms.remove(nearest_rubbish)
+    
+    # From last rubbish room to disposal
+    path_to_disposal = astar(grid, latest_rubbish, disposal, rubbish_rooms)
+    path_to_disposal.pop(0) # Remove repeating start node
+    path += path_to_disposal
+        
+    return path
+
+
+# Calculate Load
+def calculate_load(grid, path):
+    states = []
+    final_states = []
+    total_load = 0
+    total_energy = 0
+    previous_weight = 0
+    rubbish_room_coordinates = [item[0] for item in path]
+    
+    for rubbish_room_coordinate in rubbish_room_coordinates:
+        load = grid[rubbish_room_coordinate[0]][rubbish_room_coordinate[1]]
+        total_load += load
+        states.append((rubbish_room_coordinate, total_load))
+    
+    for i, state in enumerate(states):
+        current_weight = state[1]
+        if i == 0:
+            energy_cost = 0
+        else:
+            energy_cost = 1 + (previous_weight // 10)
+            
+        total_energy += energy_cost
+        final_states.append((state, total_energy))
+        
+        previous_weight = current_weight
+
+    return final_states
+
+
+# Main Function
+if __name__ == '__main__':
+    grid_data = [
+        [0, 0, 0, 30],
+        [0, 0, 0, 0, 0],
+        [0, 5, 0, 0],
+        [0, 0, 0, 10, 10],
+        [0, 0, 0, 0],
+        [0, 5, 10, 0, 0],
+        [30, 0, 0, 20],
+        [0, 0, 0, 0, 0],
+        [0, 5, 0, 0],
+        [0, 0, 20, 5, 0],
+        [0, 0, 0, 0],
+        [10, 0, 0, 0, 0]
+    ]
+    
+    entrance = (1,0)
+    disposal = (11,1)
+    rubbish_rooms = []
+
+    # Iterate through the grid_data to find non-zero values and their coordinates (rubbish_rooms)
+    for row_idx, row in enumerate(grid_data):
+        for col_idx, value in enumerate(row):
+            if value != 0:
+                rubbish_rooms.append((row_idx, col_idx))
+
+    path = collect_all_rubbish(grid_data, entrance, disposal, rubbish_rooms)
+    
+    collected_load = calculate_load(grid_data, path)  
+    
+    # Output
+    print("ROOM|ROBOT LOAD|ENERGY USED")
+    for state, energy_used in collected_load:
+        room, robot_load = state
+        formatted_output = f"{room}|{robot_load}|{energy_used}"
+        print(formatted_output)
+    
+    print()
+    print("Total Rubbish Weight: ", collected_load[-1][0][1])
+    print("Total Energy Used: ", collected_load[-1][1])
