@@ -4,7 +4,7 @@ import time
 # initialize path cost
 path_cost = -1;
 
-# define state for each character
+# define identifiers for each character
 CRIMINAL = 0
 POLICEMAN = 1
 FATHER = 2
